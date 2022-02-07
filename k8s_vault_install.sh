@@ -1,11 +1,16 @@
 #!/bin/bash
 
-#secret
+###################################
+#           Variables
+###################################
 ROOT_DIR="secret"
 PATH_TO_SECRET="wp/db/config"
 USERNAME="user"
 PASSWORD="pass"
 POLICY_NAME="wp"
+NAMESPACE="vault"
+SERVICE_ACCOUNT="vault"
+
 
 function add_repos {
     echo "* add repo hashicorp"
@@ -109,6 +114,10 @@ function allow_access_from_kubernetes  {
 
 function add_vault_policy  {
     
+    echo -e "\n* add sa <name>"
+    kubectl create sa $SERVICE_ACCOUNT
+
+
     echo -e "\n* create new policy for created secret"  
     kubectl exec --stdin=true  --tty=true vault-0 -- \
     vault policy write $POLICY_NAME - <<EOF
@@ -118,10 +127,10 @@ path "$ROOT_DIR/$PATH_TO_SECRET" {
 EOF
     
     echo -e "\n* apply policy for kubernetes"  
-    kubectl exec --stdin=true  --tty=true vault-0 -- vault write auth/kubernetes/role/wp \
-    bound_service_account_names=vault \
-    bound_service_account_namespaces=vault \
-    policies=wp \
+    kubectl exec --stdin=true  --tty=true vault-0 -- vault write auth/kubernetes/role/$POLICY_NAME \
+    bound_service_account_names=$SERVICE_ACCOUNT \
+    bound_service_account_namespaces=$NAMESPACE \
+    policies=$POLICY_NAME \
     ttl=24h
     
 }
