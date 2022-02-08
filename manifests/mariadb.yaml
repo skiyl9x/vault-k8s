@@ -13,6 +13,7 @@ spec:
       labels:
         run: mariadb
     spec:
+      serviceAccountName: vault-mariadb-sa
       containers:
       - name: mariadb
         image: l9xhub/mariadb:latest
@@ -32,22 +33,4 @@ spec:
           limits:
             memory: "128Mi"
             cpu: "500m"
-      imagePullSecrets:
-      - name: private-registry-cred
-
----
-
-apiVersion: v1
-kind: Service
-metadata:
-  name: mariadb
-  namespace: vault
-  labels:
-    run: mariadb
-spec:
-  ports:
-  - port: 3306
-    protocol: TCP
-  selector:
-    run: mariadb
 
