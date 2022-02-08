@@ -226,7 +226,7 @@ do
         --add_new_key)                      add_new_key;;
         --allow_access_from_kubernetes)     allow_access_from_kubernetes;;
         --add_vault_policy)                 add_vault_policy;;
-	    --port-forward)                     kubectl port-forward vault-0 8200:8200;;
+	--port-forward)                     kubectl port-forward vault-0 8200:8200;;
         --gen_patch_file)                   gen_patch_file;;
 
         --all_steps)                        add_namespace && \
