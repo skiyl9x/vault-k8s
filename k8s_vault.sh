@@ -350,7 +350,7 @@ do
                                           add_repos && \
                                           install_consul && \
                                           install_vault && \
-                                          init_vault && \
+                                          init_vault;;
 
         steps-2)                          unseal_vaults && \
                                           vault_login  "0" && echo -e "- Succesfully have logined\n" && \
