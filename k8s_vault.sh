@@ -65,7 +65,8 @@ function init_vault {
     if [ "$?" -ne "0" ]; then
       echo -e "\n${YELLOW}* Init vault${NC}"
       kubectl -n $NAMESPACE exec vault-0 -- vault operator init -key-shares=1 -key-threshold=1 -format=json > cluster-keys.json
-      echo -e "- Vault keys have saved in cluster-keys.json.{NC}"
+      echo -e "- Vault keys have writen in cluster-keys.json."
+      echo -e "${YELLOW}- Save this keys into SECRET STORAGE and delete file.{NC}"
     else 
       echo -e "\nVault was already initialized"
     fi
