@@ -304,9 +304,10 @@ vault_login                     get password and login into vault
 add_new_key [option]            add secret new key in vault 
 allow_access_from_kubernetes    allow access from kubernetes
 add_vault_policy                add vault policy
-all_steps                       perform all steps
 port-forward                    enable port forwarding for vault
 gen_mysql_config_file           generate file with injection for mysql
+steps-1                         add repositories, install consul and vault, initialize vault and get vault keys 
+steps-2                         unseal all vaults, login into vault, add secret new key in vault, allow access from k8s, add vault policy, generate file with injection for mysql 
 EOF
 )
 
@@ -344,12 +345,13 @@ do
         gen_mysql_config_file)            gen_mysql_config_file;;
         get_key_value)                    get_key_value;;
 
-        all_steps)                        add_namespace && \
+        steps-1)                          add_namespace && \
                                           add_repos && \
                                           install_consul && \
                                           install_vault && \
                                           init_vault && \
-                                          unseal_vaults && \
+
+        steps-2)                          unseal_vaults && \
                                           vault_login  "0" && echo -e "- Succesfully have logined\n" && \
                                           gen_db_cred && add_new_key && \
                                           allow_access_from_kubernetes && \
