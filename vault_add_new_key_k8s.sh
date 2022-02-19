@@ -7,8 +7,7 @@ ROOT_DIR="secret" #name of root directory in kv-v2 vault
 PATH_TO_SECRET="wp/db" #path to secret in kv-v2 vault
 SECRET="config" #name of secret in kv-v2 vault
 CRED_JSON_STRING='' #credentials in json format. It will be generate via function gen_db_cred
-VAULT_KEYS=`cat cluster-keys.json` #credentials in json format. It will be generate via function init_vault
-
+#VAULT_KEYS=`cat cluster-keys.json` #credentials in json format. It will be generate via function init_vault
 
 GREEN='\033[0;32m'  
 NC='\033[0m'
@@ -20,57 +19,6 @@ SERVICE_ACCOUNT="vault-mysql-sa" #service account name where are application tha
 ACCESS_ROLE="vault-mysql-ar" #access role for application
 POLICY_NAME="vault-mysql-policy" #policy name for application
 PORT_FORWARD="8200" #port in host for forwarding by COMMAND: kubectl port-forward vault-0 $PORT_FORWARD:8200
-
-#function for create new namespace
-function add_namespace {
-    
-    echo -e "\n${YELLOW}* Add new namespace and choose it by default${NC}"
-    kubectl create ns $NAMESPACE
-    kubectl config set-context --current --namespace=$NAMESPACE
-
-}
-
-#add registry hashicorp
-function add_repos {
-    echo -e "\n${YELLOW}* Add repo hashicorp${NC}"
-    helm repo add hashicorp https://helm.releases.hashicorp.com
-    
-    echo -e "- Update repo list"
-    helm repo update
-}
-
-#install consul via helm
-function install_consul {
-    echo -e "\n${YELLOW}* Install consul with values from helm-consul-values.yml${NC}"
-    helm install -n $NAMESPACE consul hashicorp/consul --values helm-consul-values.yml
-    
-    echo -e "- Verify installation"
-    kubectl -n $NAMESPACE wait --timeout=180s --for=condition=Ready $(kubectl -n $NAMESPACE get pod --selector=app=consul -o name)
-}
-
-#install vault via helm
-function install_vault {
-    echo -e "\n${YELLOW}* Install vault with values from helm-vault-values.yml${NC}"
-    helm -n $NAMESPACE install vault hashicorp/vault --values helm-vault-values.yml
-    
-    echo -e "- Verify installation"
-    kubectl -n $NAMESPACE wait --timeout=180s --for=condition=Ready $(kubectl get pod --selector=app.kubernetes.io/name=vault-agent-injector -o name)
-}
-
-#initialization vault
-function init_vault {
-    
-    kubectl -n $NAMESPACE exec --stdin=true  --tty=true vault-0 -- vault operator  init -status 1> /dev/null
-
-    if [ "$?" -ne "0" ]; then
-      echo -e "\n${YELLOW}* Init vault${NC}"
-      kubectl -n $NAMESPACE exec vault-0 -- vault operator init -key-shares=1 -key-threshold=1 -format=json > cluster-keys.json
-      echo -e "- Vault keys have writen in cluster-keys.json."
-      echo -e "${YELLOW}- Save this keys into SECRET STORAGE and delete file.{NC}"
-    else 
-      echo -e "\nVault was already initialized"
-    fi
-}
 
 #unsealling vaults
 function unseal_vaults  {
@@ -94,10 +42,10 @@ function seal_vaults  {
     echo -e "\n${YELLOW}* Seal all vaults${NC}"
     for i in {0..2}; do
         echo -e "\n===============vault-$i==============="
+        vault_login $i
+        sleep 6
         kubectl -n $NAMESPACE exec --stdin=true  --tty=true vault-$i -- vault operator key-status > /dev/null 2>&1
         if [ "$?" -eq "0" ]; then
-            vault_login $i
-            sleep 6
             kubectl -n $NAMESPACE exec --stdin=true --tty=true vault-$i -- vault operator seal
         else
             echo -e "- vault-$i has already sealed"
@@ -138,7 +86,7 @@ function add_new_key {
     # echo -e "- Show created key"
     # kubectl exec --stdin=true  --tty=true vault-0 -- \
     # vault kv get $ROOT_DIR/$PATH_TO_SECRET/$SECRET
-    echo -e "${GREEN}- The secret has added succesfully!${NC}\n"
+    echo -e "${GREEN}- The secret has been added succesfully!${NC}\n"
 
 }
 
@@ -177,19 +125,19 @@ function allow_access_from_kubernetes  {
 #new policy with requirements
 function add_vault_policy  {
     
-    echo -e "\n${YELLOW}* Add service account key${NC}"
-    kubectl -n $NAMESPACE create sa $SERVICE_ACCOUNT --namespace=$NAMESPACE_app
-
-
-    echo -e "- Create new policy for created secret"  
-    kubectl -n $NAMESPACE exec --stdin=true  --tty=true vault-0 -- \
-    vault policy write $POLICY_NAME - <<EOF
+    echo -e "\n${YELLOW}* Create new policy for created secret${NC}"  
+    POLICY_VALUE=$(cat <<EOF
 path "$ROOT_DIR/*" {
   capabilities = ["read"]
 }
 EOF
-    
-    echo -e "\n* Apply policy for kubernetes"  
+)
+
+    printf "$POLICY_VALUE" | kubectl -n $NAMESPACE exec --stdin=true  --tty=true vault-0 -- \
+    vault policy write $POLICY_NAME -
+    printf "${GREEN}\n- Policy with the next value has been created:${NC} \n$POLICY_VALUE\n"
+
+    echo -e "${YELLOW}\n* Apply policy for kubernetes${NC}"  
     kubectl -n $NAMESPACE exec --stdin=true  --tty=true vault-0 -- vault write auth/kubernetes/role/$ACCESS_ROLE \
     bound_service_account_names=$SERVICE_ACCOUNT \
     bound_service_account_namespaces=$NAMESPACE_app \
@@ -289,28 +237,21 @@ function gen_db_cred {
 
 }
 
-
-
 usage=$(cat <<EOF
-Usage: ./k8s_vault <arg1> <arg2> <arg3> <arg4> ... <arg10>
+Usage: ./k8s_vault <arg1> <arg2> <arg3> <arg4> ... <argN>
 
 Arguments:
-add_repos                       add helm repo hashicorp
-install_consul                  install consul for vault via helm
-install_vault                   install vault via helm
-init_vault                      initialization vault
 unseal_vaults                   unseal all vaults
 seal_vaults                     seal vaults
 vault_login                     get password and login into vault
 add_new_key [option]            add secret new key in vault 
 allow_access_from_kubernetes    allow access from kubernetes
 add_vault_policy                add vault policy
-port-forward                    enable port forwarding for vault
 gen_mysql_config_file           generate file with injection for mysql
-steps-1                         add repositories, install consul and vault, initialize vault and get vault keys 
-steps-2                         unseal all vaults, login into vault, add secret new key in vault, allow access from k8s, add vault policy, generate file with injection for mysql 
+all_steps                       unseal all vaults, login into vault, add secret new key in vault, allow access from k8s, add vault policy, generate file with injection for mysql 
 EOF
 )
+
 
 add_new_key_usage=$(cat <<EOF
 Create new key and write it into vault database
@@ -333,26 +274,15 @@ for (( i=0;i<$ELEMENTS;i++));
 do                           
 
     case ${args[${i}]} in
-        add_repos)                        add_repos;;
-        install_consul)                   install_consul;;
-        install_vault)                    install_vault;;    
-        init_vault)                       init_vault;;
         unseal_vaults)                    unseal_vaults ;;
         seal_vaults)                      seal_vaults ;;
         vault_login)                      vault_login "0" && echo -e "- Succesfully have logined\n";;
         allow_access_from_kubernetes)     allow_access_from_kubernetes;;
         add_vault_policy)                 add_vault_policy;;
-        port-forward)                     kubectl port-forward vault-0 $PORT_FORWARD:8200;;
         gen_mysql_config_file)            gen_mysql_config_file;;
         get_key_value)                    get_key_value;;
 
-        steps-1)                          add_namespace && \
-                                          add_repos && \
-                                          install_consul && \
-                                          install_vault && \
-                                          init_vault;;
-
-        steps-2)                          unseal_vaults && \
+        all_steps)                        unseal_vaults && \
                                           vault_login  "0" && echo -e "- Succesfully have logined\n" && \
                                           gen_db_cred && add_new_key && \
                                           allow_access_from_kubernetes && \
