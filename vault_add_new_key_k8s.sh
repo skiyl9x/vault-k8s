@@ -80,7 +80,7 @@ function add_new_key {
       echo -e "- PATH: $ROOT_DIR/ exist in the vault"
     fi
 
-    echo $CRED_JSON_STRING | kubectl exec --stdin=true  --tty=true vault-0 vault-0 -- \
+    echo $CRED_JSON_STRING | kubectl -n $NAMESPACE exec --stdin=true  --tty=true vault-0 vault-0 -- \
                            sh -c 'vault kv put  /secret/wp/db/config -'
 
     # echo -e "- Show created key"
